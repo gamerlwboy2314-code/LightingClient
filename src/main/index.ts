@@ -15,6 +15,7 @@ import { basename, isAbsolute, join } from 'node:path'
 import { promisify } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { isSupportedRelease, isValidMicrosoftClientId, parseJavaArgs, parseJavaMajorVersion, validateLauncherSettings } from '../shared/launcherUtils'
+import { summarizeUpdateError } from '../shared/updateUtils'
 import type { Cape, LaunchEvent, LauncherSettings, LauncherUpdateStatus, ModInfo, Player, PluginInfo, PluginUpdate, VersionInfo, WorldInfo } from '../shared/types'
 import { MICROSOFT_OAUTH_CLIENT_ID } from './authConfig'
 import {
@@ -122,13 +123,13 @@ function configureAutoUpdater(): void {
   })
   autoUpdater.on('error', (error) => emitUpdateStatus({
     status: 'error',
-    message: `Could not check or download an update: ${error.message}`
+    message: summarizeUpdateError(error)
   }))
 
   void autoUpdater.checkForUpdates().catch((error: unknown) => {
     emitUpdateStatus({
       status: 'error',
-      message: `Could not check for updates: ${error instanceof Error ? error.message : 'Unexpected update error.'}`
+      message: summarizeUpdateError(error)
     })
   })
 }
@@ -1158,9 +1159,7 @@ function registerIpcHandlers(): void {
     try {
       await autoUpdater.checkForUpdates()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unexpected update error.'
-      emitUpdateStatus({ status: 'error', message: `Could not check for updates: ${message}` })
-      throw new Error(message)
+      emitUpdateStatus({ status: 'error', message: summarizeUpdateError(error) })
     }
   })
 
@@ -1171,9 +1170,7 @@ function registerIpcHandlers(): void {
     try {
       await autoUpdater.downloadUpdate()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unexpected download error.'
-      emitUpdateStatus({ status: 'error', message: `Could not download the update: ${message}` })
-      throw new Error(message)
+      emitUpdateStatus({ status: 'error', message: summarizeUpdateError(error) })
     }
   })
 

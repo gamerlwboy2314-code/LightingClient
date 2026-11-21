@@ -322,6 +322,11 @@ code { color: var(--accent); font-size: 11px; }
 .update-copy p { margin: 6px 0 0; color: var(--muted); font-size: 11px; white-space: pre-line; }
 .update-warning { border-color: #b86f3a; }
 .update-warning .eyebrow { color: #e6a56c; }
+.update-warning { max-width: 860px; padding: 10px 14px; }
+.update-warning .update-copy { display: flex; align-items: baseline; gap: 12px; }
+.update-warning .update-copy .eyebrow { flex: 0 0 auto; margin: 0; }
+.update-warning .update-copy p { overflow: hidden; margin: 0; text-overflow: ellipsis; }
+.update-warning .outline { flex: 0 0 auto; padding: 8px 11px; }
 .update-progress { width: min(230px, 30vw); flex: 0 0 auto; margin: 0; }
 
 .page-layout { display: grid; gap: 16px; align-items: start; }
@@ -430,6 +435,7 @@ footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 3
   .hero::after { right: -17%; width: 54vw; opacity: .48; }
   .update-banner { align-items: stretch; flex-direction: column; margin-top: -10px; }
   .update-progress { width: 100%; }
+  .update-warning .update-copy { align-items: flex-start; flex-direction: column; gap: 5px; }
   .loader-row { grid-template-columns: 1fr; }
   .panel-actions { flex-wrap: wrap; }
   footer { display: grid; gap: 8px; }

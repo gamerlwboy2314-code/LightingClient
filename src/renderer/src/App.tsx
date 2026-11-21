@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { LauncherSettings, LauncherUpdateStatus, ModInfo, Player, PluginInfo, VersionInfo, LaunchEvent, WorldInfo } from '../../shared/types'
+import { summarizeUpdateError } from '../../shared/updateUtils'
 import lightningIcon from './assets/lightning-icon.png'
 
 type Page = 'play' | 'mods' | 'plugins' | 'worlds' | 'capes' | 'settings' | 'dev'
@@ -327,7 +328,7 @@ export default function App() {
     try {
       await window.launcher.checkForUpdates()
     } catch (e) {
-      setUpdateStatus({ status: 'error', message: messageOf(e) })
+      setUpdateStatus({ status: 'error', message: summarizeUpdateError(e) })
     }
   }
 
@@ -335,7 +336,7 @@ export default function App() {
     try {
       await window.launcher.downloadUpdate()
     } catch (e) {
-      setUpdateStatus({ status: 'error', message: messageOf(e) })
+      setUpdateStatus({ status: 'error', message: summarizeUpdateError(e) })
     }
   }
 
@@ -343,7 +344,7 @@ export default function App() {
     try {
       await window.launcher.installUpdate()
     } catch (e) {
-      setUpdateStatus({ status: 'error', message: messageOf(e) })
+      setUpdateStatus({ status: 'error', message: summarizeUpdateError(e) })
     }
   }
 
