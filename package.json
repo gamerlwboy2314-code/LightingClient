@@ -1,6 +1,6 @@
 {
   "name": "lightingclient",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "LightingClient Minecraft Java launcher",
   "main": "out/main/index.js",
@@ -24,6 +24,7 @@
     "@xmcl/core": "2.15.1",
     "@xmcl/installer": "6.1.2",
     "@xmcl/user": "^4.4.2",
+    "electron-updater": "^6.8.11",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
@@ -44,13 +45,23 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "gamerlwboy2314-code",
+        "repo": "LightingClient",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "out/**",
       "build/lightingclient.ico",
       "package.json"
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "build/lightingclient.ico",
       "artifactName": "LightingClient-Setup-${version}.${ext}"
     },

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import type { LauncherSettings, ModInfo, Player, PluginInfo, VersionInfo, LaunchEvent, WorldInfo } from '../../shared/types'
+import type { LauncherSettings, LauncherUpdateStatus, ModInfo, Player, PluginInfo, VersionInfo, LaunchEvent, WorldInfo } from '../../shared/types'
 import lightningIcon from './assets/lightning-icon.png'
 
-type Page = 'play' | 'mods' | 'plugins' | 'worlds' | 'capes' | 'settings'
+type Page = 'play' | 'mods' | 'plugins' | 'worlds' | 'capes' | 'settings' | 'dev'
 
 const initial: LauncherSettings = {
   gameDir: '',
@@ -41,6 +41,8 @@ export default function App() {
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [startupDelayElapsed, setStartupDelayElapsed] = useState(false)
   const [player, setPlayer] = useState<Player | null>(null)
+  const [appVersion, setAppVersion] = useState('1.0.2')
+  const [updateStatus, setUpdateStatus] = useState<LauncherUpdateStatus>({ status: 'idle' })
   const [event, setEvent] = useState<LaunchEvent>({ type: 'status', message: 'Ready when you are.' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -48,6 +50,17 @@ export default function App() {
   useEffect(() => {
     const timeout = window.setTimeout(() => setStartupDelayElapsed(true), 1800)
     return () => window.clearTimeout(timeout)
+  }, [])
+
+  useEffect(() => {
+    const unsubscribe = window.launcher.onUpdateEvent(setUpdateStatus)
+    window.launcher.getUpdateStatus()
+      .then(setUpdateStatus)
+      .catch((e: unknown) => setError(messageOf(e)))
+    window.launcher.getAppVersion()
+      .then(setAppVersion)
+      .catch((e: unknown) => setError(messageOf(e)))
+    return unsubscribe
   }, [])
 
   useEffect(() => {
@@ -310,13 +323,46 @@ export default function App() {
     }
   }
 
+  async function checkForUpdates() {
+    try {
+      await window.launcher.checkForUpdates()
+    } catch (e) {
+      setUpdateStatus({ status: 'error', message: messageOf(e) })
+    }
+  }
+
+  async function downloadUpdate() {
+    try {
+      await window.launcher.downloadUpdate()
+    } catch (e) {
+      setUpdateStatus({ status: 'error', message: messageOf(e) })
+    }
+  }
+
+  async function installUpdate() {
+    try {
+      await window.launcher.installUpdate()
+    } catch (e) {
+      setUpdateStatus({ status: 'error', message: messageOf(e) })
+    }
+  }
+
+  async function openReleaseManager() {
+    try {
+      await window.launcher.openReleaseManager()
+    } catch (e) {
+      setError(messageOf(e))
+    }
+  }
+
   const headings: Record<Page, string> = {
     play: 'Your next adventure.',
     mods: 'Manage your mods.',
     plugins: 'Your installed plugins.',
     worlds: 'Your Minecraft worlds.',
     capes: 'Your profile cosmetics.',
-    settings: 'Launcher settings.'
+    settings: 'Launcher settings.',
+    dev: 'Developer Centre.'
   }
 
   if (!settingsLoaded || !startupDelayElapsed) {
@@ -356,7 +402,7 @@ export default function App() {
           </button>
         )}
       </nav>
-      <div className="side-bottom"><span className="dot"/><small>LightingClient · v1.0.1</small></div>
+      <div className="side-bottom"><span className="dot"/><small>LightingClient · v{appVersion}</small></div>
     </aside>
 
     <section className="content">
@@ -368,6 +414,27 @@ export default function App() {
             {!settingsLoaded ? 'Loading…' : 'Sign in with Microsoft'}
           </button>}
       </header>
+
+      {updateStatus.status === 'available' && <div className="update-banner page-enter" role="status">
+        <div className="update-copy">
+          <span className="eyebrow">UPDATE AVAILABLE · VERSION {updateStatus.version}</span>
+          <b>{updateStatus.title}</b>
+          {updateStatus.notes && <p>{updateStatus.notes}</p>}
+        </div>
+        <button className="play compact" onClick={downloadUpdate}>DOWNLOAD UPDATE</button>
+      </div>}
+      {updateStatus.status === 'downloading' && <div className="update-banner" role="status">
+        <div className="update-copy"><span className="eyebrow">DOWNLOADING VERSION {updateStatus.version}</span><b>{updateStatus.percent}%</b></div>
+        <div className="progress update-progress"><span style={{ width: `${updateStatus.percent}%` }}/></div>
+      </div>}
+      {updateStatus.status === 'downloaded' && <div className="update-banner page-enter" role="status">
+        <div className="update-copy"><span className="eyebrow">UPDATE READY · VERSION {updateStatus.version}</span><b>{updateStatus.title}</b></div>
+        <button className="play compact" onClick={installUpdate}>RESTART TO UPDATE</button>
+      </div>}
+      {updateStatus.status === 'error' && <div className="update-banner update-warning" role="status">
+        <div className="update-copy"><span className="eyebrow">UPDATE CHECK</span><p>{updateStatus.message}</p></div>
+        <button className="outline" onClick={checkForUpdates}>RETRY</button>
+      </div>}
 
       {page === 'play' && <div className="page-enter">
         <div className="hero">
@@ -577,14 +644,29 @@ export default function App() {
           <p className="field-note">Microsoft sign-in is built into this launcher. Click Sign in with Microsoft to continue in your browser; no application ID or secret is needed from you.</p>
           <div className="settings-actions">
             <button className="play compact" onClick={saveSettings} disabled={!settingsLoaded || busy}>{busy ? 'WORKING…' : 'SAVE SETTINGS'}</button>
+            <button className="outline compact" onClick={() => setPage('dev')}>DEV CENTRE</button>
           </div>
           <p className="field-note">Sign-in opens Microsoft in your browser. LightingClient never sees your password; tokens are encrypted by your operating system.</p>
         </div>
         <div className="panel tip"><span className="eyebrow">ABOUT SIGN-IN</span><h3>Sign in once</h3><p>Your account is remembered securely on this computer. Sign out removes the locally stored Microsoft session.</p></div>
       </div>}
 
+      {page === 'dev' && <div className="page-layout page-enter">
+        <div className="panel">
+          <span className="eyebrow">GITHUB RELEASES</span>
+          <h3>Publish a launcher update</h3>
+          <p className="panel-copy">LightingClient checks GitHub Releases for updates. Publish a new version tag to build and upload the installer automatically. Use GitHub’s release page to edit the announcement title and description; no publishing password is stored in this app.</p>
+          <div className="settings-actions">
+            <button className="play compact" onClick={openReleaseManager}>OPEN RELEASE MANAGER</button>
+            <button className="outline compact" onClick={checkForUpdates}>CHECK FOR UPDATES</button>
+          </div>
+          {updateStatus.status === 'not-available' && <p className="field-note">This installation is up to date.</p>}
+          <p className="field-note">To publish: bump the package version, push a matching <code>vX.Y.Z</code> tag, then wait for the GitHub Actions release workflow to finish.</p>
+        </div>
+      </div>}
+
       {error && <div className="error" role="alert">{error}<button onClick={() => setError('')}>×</button></div>}
-      <footer><span>NOT AN OFFICIAL MINECRAFT PRODUCT.</span><span>NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.</span></footer>
+      <footer><span>LIGHTINGCLIENT · v{appVersion}</span><span>NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.</span></footer>
     </section>
   </main>
 }

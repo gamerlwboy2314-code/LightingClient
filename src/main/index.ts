@@ -5,6 +5,7 @@ import type { MinecraftVersionBaseInfo } from '@xmcl/installer'
 import { launch, Version as CoreVersion } from '@xmcl/core'
 import { MojangClient, MicrosoftAuthenticator } from '@xmcl/user'
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, session, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { execFile } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
@@ -14,7 +15,7 @@ import { basename, isAbsolute, join } from 'node:path'
 import { promisify } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { isSupportedRelease, isValidMicrosoftClientId, parseJavaArgs, parseJavaMajorVersion, validateLauncherSettings } from '../shared/launcherUtils'
-import type { Cape, LaunchEvent, LauncherSettings, ModInfo, Player, PluginInfo, PluginUpdate, VersionInfo, WorldInfo } from '../shared/types'
+import type { Cape, LaunchEvent, LauncherSettings, LauncherUpdateStatus, ModInfo, Player, PluginInfo, PluginUpdate, VersionInfo, WorldInfo } from '../shared/types'
 import { MICROSOFT_OAUTH_CLIENT_ID } from './authConfig'
 import {
   listCompatibleModrinthVersions,
@@ -28,7 +29,8 @@ import { getWorldGameMode, parseWorldMetadata } from './worldUtils'
 
 const VERSION_MANIFEST_URL = 'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json'
 const MODRINTH_API_URL = 'https://api.modrinth.com/v2'
-const MODRINTH_USER_AGENT = 'LightingClient/1.0.1'
+const MODRINTH_USER_AGENT = `LightingClient/${app.getVersion()}`
+const RELEASE_MANAGER_URL = 'https://github.com/gamerlwboy2314-code/LightingClient/releases'
 const MAX_REQUIRED_MODS = 30
 const MAX_MOD_FILE_BYTES = 100 * 1024 * 1024
 const MINECRAFT_SCOPES = ['XboxLive.signin', 'offline_access']
@@ -61,6 +63,9 @@ const DEFAULT_SETTINGS: LauncherSettings = {
 }
 
 let mainWindow: BrowserWindow | null = null
+let launcherUpdateStatus: LauncherUpdateStatus = { status: 'idle' }
+let downloadedUpdate = false
+let availableUpdateVersion = app.getVersion()
 let player: Player | null = null
 let minecraftSession: MinecraftSession | null = null
 let restoreError: string | null = null
@@ -73,6 +78,59 @@ class NoJavaOwnershipError extends Error {}
 
 function emit(event: LaunchEvent) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('launcher:event', event)
+}
+
+function emitUpdateStatus(status: LauncherUpdateStatus): void {
+  launcherUpdateStatus = status
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('launcher:update-event', status)
+  }
+}
+
+function releaseNotesText(value: string | Array<{ note: string | null }> | null | undefined): string {
+  if (typeof value === 'string') return value
+  return value?.map((item) => item.note ?? '').filter(Boolean).join('\n\n') ?? ''
+}
+
+function configureAutoUpdater(): void {
+  if (!app.isPackaged) return
+
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = false
+  autoUpdater.on('checking-for-update', () => emitUpdateStatus({ status: 'checking' }))
+  autoUpdater.on('update-available', (info) => {
+    availableUpdateVersion = info.version
+    emitUpdateStatus({
+      status: 'available',
+      version: info.version,
+      title: info.releaseName || `LightingClient ${info.version}`,
+      notes: releaseNotesText(info.releaseNotes)
+    })
+  })
+  autoUpdater.on('update-not-available', () => emitUpdateStatus({ status: 'not-available' }))
+  autoUpdater.on('download-progress', (progress) => {
+    emitUpdateStatus({ status: 'downloading', version: availableUpdateVersion, percent: Math.round(progress.percent) })
+  })
+  autoUpdater.on('update-downloaded', (info) => {
+    downloadedUpdate = true
+    emitUpdateStatus({
+      status: 'downloaded',
+      version: info.version,
+      title: info.releaseName || `LightingClient ${info.version}`,
+      notes: releaseNotesText(info.releaseNotes)
+    })
+  })
+  autoUpdater.on('error', (error) => emitUpdateStatus({
+    status: 'error',
+    message: `Could not check or download an update: ${error.message}`
+  }))
+
+  void autoUpdater.checkForUpdates().catch((error: unknown) => {
+    emitUpdateStatus({
+      status: 'error',
+      message: `Could not check for updates: ${error instanceof Error ? error.message : 'Unexpected update error.'}`
+    })
+  })
 }
 
 function isMissingFile(error: unknown): boolean {
@@ -1083,6 +1141,53 @@ async function launchMinecraft(value: unknown, selectedWorld: unknown): Promise<
 }
 
 function registerIpcHandlers(): void {
+  ipcMain.handle('app:version', (event) => {
+    validateIpcSender(event)
+    return app.getVersion()
+  })
+
+  ipcMain.handle('updates:status', (event) => {
+    validateIpcSender(event)
+    return launcherUpdateStatus
+  })
+
+  ipcMain.handle('updates:check', async (event) => {
+    validateIpcSender(event)
+    if (!app.isPackaged) throw new Error('Update checks are available in installed builds.')
+    emitUpdateStatus({ status: 'checking' })
+    try {
+      await autoUpdater.checkForUpdates()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unexpected update error.'
+      emitUpdateStatus({ status: 'error', message: `Could not check for updates: ${message}` })
+      throw new Error(message)
+    }
+  })
+
+  ipcMain.handle('updates:download', async (event) => {
+    validateIpcSender(event)
+    if (!app.isPackaged) throw new Error('Update downloads are available in installed builds.')
+    if (launcherUpdateStatus.status !== 'available') throw new Error('There is no available update to download.')
+    try {
+      await autoUpdater.downloadUpdate()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unexpected download error.'
+      emitUpdateStatus({ status: 'error', message: `Could not download the update: ${message}` })
+      throw new Error(message)
+    }
+  })
+
+  ipcMain.handle('updates:install', (event) => {
+    validateIpcSender(event)
+    if (!downloadedUpdate) throw new Error('Download the update before installing it.')
+    setImmediate(() => autoUpdater.quitAndInstall(false, true))
+  })
+
+  ipcMain.handle('updates:open-release-manager', async (event) => {
+    validateIpcSender(event)
+    await shell.openExternal(RELEASE_MANAGER_URL)
+  })
+
   ipcMain.handle('versions:list', async (event) => {
     validateIpcSender(event)
     const manifest = await getVersionManifest()
@@ -1333,6 +1438,7 @@ if (!app.requestSingleInstanceLock()) {
     await restoreSession()
     registerIpcHandlers()
     await createWindow()
+    configureAutoUpdater()
   }).catch((error: unknown) => {
     dialog.showErrorBox(
       'LightingClient could not start',

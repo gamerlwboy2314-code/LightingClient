@@ -1,7 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { LauncherAPI, LaunchEvent, LauncherSettings, Player } from '../shared/types'
+import type { LauncherAPI, LaunchEvent, LauncherSettings, LauncherUpdateStatus, Player } from '../shared/types'
 
 const api: LauncherAPI = {
+  getAppVersion: () => ipcRenderer.invoke('app:version'),
+  getUpdateStatus: () => ipcRenderer.invoke('updates:status'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updates:download'),
+  installUpdate: () => ipcRenderer.invoke('updates:install'),
+  openReleaseManager: () => ipcRenderer.invoke('updates:open-release-manager'),
   getVersions: () => ipcRenderer.invoke('versions:list'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (s: LauncherSettings) => ipcRenderer.invoke('settings:save', s),
@@ -25,6 +31,11 @@ const api: LauncherAPI = {
     const listener = (_event: Electron.IpcRendererEvent, data: LaunchEvent) => callback(data)
     ipcRenderer.on('launcher:event', listener)
     return () => ipcRenderer.removeListener('launcher:event', listener)
+  },
+  onUpdateEvent: (callback: (status: LauncherUpdateStatus) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, status: LauncherUpdateStatus) => callback(status)
+    ipcRenderer.on('launcher:update-event', listener)
+    return () => ipcRenderer.removeListener('launcher:update-event', listener)
   }
 }
 contextBridge.exposeInMainWorld('launcher', api)

@@ -304,6 +304,25 @@ code { color: var(--accent); font-size: 11px; }
 .news p,.tip p { color: var(--muted); font-size: 12px; line-height: 1.65; }
 .progress { height: 5px; margin-top: 15px; overflow: hidden; border-radius: 10px; background: var(--panel2); }
 .progress span { display: block; height: 100%; background: var(--accent); transition: width .2s; }
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: -16px 0 20px;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 12px;
+  background: linear-gradient(110deg, color-mix(in srgb, var(--accent) 12%, var(--panel)), var(--panel));
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.update-copy { min-width: 0; }
+.update-copy .eyebrow { display: block; margin-bottom: 6px; color: var(--accent); }
+.update-copy b { font-size: 13px; }
+.update-copy p { margin: 6px 0 0; color: var(--muted); font-size: 11px; white-space: pre-line; }
+.update-warning { border-color: #b86f3a; }
+.update-warning .eyebrow { color: #e6a56c; }
+.update-progress { width: min(230px, 30vw); flex: 0 0 auto; margin: 0; }
 
 .page-layout { display: grid; gap: 16px; align-items: start; }
 .panel-copy,.empty-state { line-height: 1.6; }
@@ -409,6 +428,8 @@ footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 3
   .launch-row { align-items: stretch; flex-direction: column; }
   .launch-button { width: 100%; }
   .hero::after { right: -17%; width: 54vw; opacity: .48; }
+  .update-banner { align-items: stretch; flex-direction: column; margin-top: -10px; }
+  .update-progress { width: 100%; }
   .loader-row { grid-template-columns: 1fr; }
   .panel-actions { flex-wrap: wrap; }
   footer { display: grid; gap: 8px; }

@@ -37,8 +37,20 @@ export type PluginUpdate = {
   version?: string
   fabricVersionId?: string
 }
+export type LauncherUpdateStatus =
+  | { status: 'idle' | 'checking' | 'not-available' }
+  | { status: 'available'; version: string; title: string; notes: string }
+  | { status: 'downloading'; version: string; percent: number }
+  | { status: 'downloaded'; version: string; title: string; notes: string }
+  | { status: 'error'; message: string }
 export type VersionInfo = { id: string; type: string; baseVersion?: string }
 export interface LauncherAPI {
+  getAppVersion(): Promise<string>
+  getUpdateStatus(): Promise<LauncherUpdateStatus>
+  checkForUpdates(): Promise<void>
+  downloadUpdate(): Promise<void>
+  installUpdate(): Promise<void>
+  openReleaseManager(): Promise<void>
   getVersions(): Promise<VersionInfo[]>
   getSettings(): Promise<LauncherSettings>
   saveSettings(settings: LauncherSettings): Promise<void>
@@ -58,4 +70,5 @@ export interface LauncherAPI {
   setCape(capeId: string | null): Promise<Player>
   launch(version: string, worldId?: string): Promise<void>
   onLaunchEvent(callback: (event: LaunchEvent) => void): () => void
+  onUpdateEvent(callback: (status: LauncherUpdateStatus) => void): () => void
 }
